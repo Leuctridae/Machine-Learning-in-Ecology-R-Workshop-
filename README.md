@@ -45,7 +45,10 @@ Please ensure you have installed before the workshop:
 ```
 # watch this on how to install packages - https://www.youtube.com/watch?v=u1r5XTqrCTQ 
 
+
 # watch this on how to get coding - https://youtu.be/FY8BISK5DpM?si=eSWn-RzrfOP-rsPR
+
+
 
 # Watch this to understand how random forest works in r - https://www.youtube.com/watch?v=6EXPYzbfLCE&t=1s 
 
