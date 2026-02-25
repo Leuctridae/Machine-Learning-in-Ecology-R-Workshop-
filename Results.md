@@ -172,7 +172,7 @@ With only 16 observations and limited environmental variation:
 
 ### 6. Partial Dependence Plots
 
-![Partial Dependence](path/to/your/plot6.png)
+![Partial Dependence](https://github.com/Leuctridae/Machine-Learning-in-Ecology-R-Workshop-/blob/138fbc34cd9e174cc337e79e025c26fe6db5fd23/partialdepend.jpeg)
 
 **Figure 6: Partial dependence plots for the three most important predictors of species richness.**
 
