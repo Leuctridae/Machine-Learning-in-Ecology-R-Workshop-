@@ -1,0 +1,982 @@
+################################################################################
+######################### MACHINE LEARNING IN ECOLOGY ##########################
+################ R WORKSHOP: INVERTEBRATE COMMUNITY ANALYSIS ###################
+################################################################################
+# 
+# Workshop facilitated by Arron Watson
+# Environment Agency & University of Birmingham
+#
+# This script guides you through:
+# 1. Loading and linking multiple ecological datasets
+# 2. Spatial clustering of sampling sites
+# 3. Temporal matching across datasets
+# 4. Exploratory data visualization
+# 5. Random Forest modeling to identify environmental drivers
+#
+################################################################################
+
+
+################################################################################
+########################### PHASE 1: SETUP & PACKAGES ##########################
+################################################################################
+
+# Install packages if needed (remove # to run)
+# install.packages(c("tidyverse", "randomForest", "vegan", "ggplot2", "sf"))
+
+# Load required libraries
+library(ggplot2)      # For plotting
+library(vegan)        # For ecological diversity calculations
+library(randomForest)
+library(pdp)# For Random Forest models
+
+# Set working directory to where your data folder is located
+# CHANGE THIS to match your folder structure
+# setwd("~/path/to/your/workshop/folder")
+
+# Check your working directory
+getwd() # tells you the current folder, will probably be where the script is. Change it to where both Data and Scripts are 
+#setwd("drive/folder_where_the_workshop_Data/script_folder_is")
+
+################################################################################
+##################### PHASE 2: LOAD DATA FROM FILES ############################
+################################################################################
+
+# Load the three datasets from the 'data' folder
+# Make sure all three CSV files are in a folder called 'data'
+
+# 1. Invertebrate species data
+inv_data <- read.csv("Data/INV_OPEN_DATA_TAXA_2026-02-24.csv") # now we add the Data folder in front of the file name and it goes to it
+
+# 2. Site environmental data
+site_data <- read.csv("Data/INV_OPEN_DATA_SITE_2026-02-24.csv")
+
+# 3. Habitat physical structure data
+habitat_data <- read.csv("Data/bollin_RHS.csv")
+
+# Let's inspect what we've loaded
+cat("Invertebrate data dimensions:", dim(inv_data), "\n")
+cat("Site data dimensions:", dim(site_data), "\n")
+cat("Habitat data dimensions:", dim(habitat_data), "\n")
+
+# Look at the first few rows of each dataset
+head(inv_data)
+head(site_data)
+head(habitat_data)
+
+# Check column names to confirm we have the right linking columns
+cat("\nInvertebrate grid reference column:", 
+    colnames(inv_data)[grep("NGR", colnames(inv_data))], "\n")
+cat("Site grid reference column:", 
+    colnames(site_data)[grep("NGR", colnames(site_data))], "\n")
+cat("Habitat grid reference column:", 
+    colnames(habitat_data)[grep("NGR", colnames(habitat_data))], "\n")
+
+
+################################################################################
+################### PHASE 3: EXTRACT YEARS FROM DATES ##########################
+################################################################################
+
+# Check invertebrate dates
+head(inv_data$SAMPLE_DATE)
+class(inv_data$SAMPLE_DATE)
+
+# Check site dates
+head(site_data$BASE_DATA_DATE)
+class(site_data$BASE_DATA_DATE)
+
+# The datasets have dates in different formats and column names
+# We need to extract just the YEAR so we can match data across time
+
+# Invertebrate dates are in SAMPLE_DATE column (format: YYYY-MM-DD)
+inv_dates <- as.Date(inv_data$SAMPLE_DATE, format = "%Y-%m-%d")
+inv_data$YEAR <- as.numeric(format(inv_dates, "%Y"))
+
+# Site dates are in BASE_DATA_DATE column (format: YYYY-MM-DD)
+site_dates <- as.Date(site_data$BASE_DATA_DATE, format = "%Y-%m-%d")
+site_data$YEAR <- as.numeric(format(site_dates, "%Y"))
+
+# Habitat dates are in SURVEY_DATE column (format: DD/MM/YYYY)
+habitat_dates <- as.Date(habitat_data$SURVEY_DATE, format = "%d/%m/%Y")
+habitat_data$YEAR <- as.numeric(format(habitat_dates, "%Y"))
+
+
+cat("\nInvertebrate years range:", 
+    min(inv_data$YEAR, na.rm = TRUE), "to", 
+    max(inv_data$YEAR, na.rm = TRUE), "\n")
+cat("Site years range:", 
+    min(site_data$YEAR, na.rm = TRUE), "to", 
+    max(site_data$YEAR, na.rm = TRUE), "\n")
+cat("Habitat years range:", 
+    min(habitat_data$YEAR, na.rm = TRUE), "to", 
+    max(habitat_data$YEAR, na.rm = TRUE), "\n")
+
+# Let's see how many samples we have per year in each dataset
+inv_years_table <- table(inv_data$YEAR)
+site_years_table <- table(site_data$YEAR)
+habitat_years_table <- table(habitat_data$YEAR)
+
+cat("\nInvertebrate samples per year:\n")
+print(inv_years_table)
+cat("\nSite samples per year:\n")
+print(site_years_table)
+cat("\nHabitat samples per year:\n")
+print(habitat_years_table)
+
+
+################################################################################
+############### PHASE 4: SPATIAL LINKING - GROUP NEARBY SITES ##################
+################################################################################
+
+# Grid references are 10-figure UK National Grid References
+# Format: SJ1234567890 (2 letters + 10 digits)
+# We need to convert these to actual coordinates (easting/northing)
+
+# Function to convert 10-figure grid reference to easting and northing
+# This converts the alphanumeric grid ref to numeric coordinates
+convert_gridref_to_coords <- function(gridref) {
+  # Extract the 2-letter prefix (e.g., "SJ")
+  letters <- substr(gridref, 1, 2)
+  
+  # Extract the 10 digits
+  numbers <- substr(gridref, 3, nchar(gridref))
+  
+  # Split into easting (first 5 digits) and northing (last 5 digits)
+  easting_offset <- as.numeric(substr(numbers, 1, 5))
+  northing_offset <- as.numeric(substr(numbers, 6, 10))
+  
+  # Convert letter prefix to 100km square offset
+  # This is a simplified version - full conversion needs a lookup table
+  # For this workshop, we'll use a basic approximation
+  first_letter <- substr(letters, 1, 1)
+  second_letter <- substr(letters, 2, 2)
+  
+  # Approximate 100km grid square offsets (simplified)
+  letter_to_easting <- c(S=0, T=100000, N=0, O=100000, H=0, J=100000)
+  letter_to_northing <- c(S=0, T=0, N=100000, O=100000, H=500000, J=500000)
+  
+  easting <- letter_to_easting[first_letter] * 1000 + 
+             letter_to_easting[second_letter] * 1000 + 
+             easting_offset
+  northing <- letter_to_northing[first_letter] * 1000 + 
+              letter_to_northing[second_letter] * 1000 + 
+              northing_offset
+  
+  return(data.frame(easting = easting, northing = northing))
+}
+
+# Apply coordinate conversion to invertebrate data
+inv_coords <- convert_gridref_to_coords(inv_data$NGR_10_FIG)
+inv_data$EASTING <- inv_coords$easting
+inv_data$NORTHING <- inv_coords$northing
+
+# Apply coordinate conversion to site data
+site_coords <- convert_gridref_to_coords(site_data$NGR_10_FIG)
+site_data$EASTING <- site_coords$easting
+site_data$NORTHING <- site_coords$northing
+
+# Apply coordinate conversion to habitat data
+habitat_coords <- convert_gridref_to_coords(habitat_data$NGR_SITE)
+habitat_data$EASTING <- habitat_coords$easting
+habitat_data$NORTHING <- habitat_coords$northing
+
+# Now let's find sites that are close to each other
+# We'll use a clustering radius - sites within this distance are "linked"
+# You can experiment with different radius values
+
+# Set clustering radius in meters
+cluster_radius <- 1000  # 1 kilometer = 1000, try 5km radius? / is 1km enough, what about higher? we need more than one cluster.
+
+# For simplicity, we'll group sites by rounding coordinates
+# This creates spatial "bins" of similar-sized areas
+# Sites in the same bin are considered linked
+
+# Round coordinates to nearest kilometer
+inv_data$EASTING_ROUNDED <- round(inv_data$EASTING / cluster_radius) * cluster_radius
+inv_data$NORTHING_ROUNDED <- round(inv_data$NORTHING / cluster_radius) * cluster_radius
+
+site_data$EASTING_ROUNDED <- round(site_data$EASTING / cluster_radius) * cluster_radius
+site_data$NORTHING_ROUNDED <- round(site_data$NORTHING / cluster_radius) * cluster_radius
+
+habitat_data$EASTING_ROUNDED <- round(habitat_data$EASTING / cluster_radius) * cluster_radius
+habitat_data$NORTHING_ROUNDED <- round(habitat_data$NORTHING / cluster_radius) * cluster_radius
+
+# Create a unique cluster ID for each spatial group
+inv_data$CLUSTER_ID <- paste(inv_data$EASTING_ROUNDED, 
+                              inv_data$NORTHING_ROUNDED, 
+                              sep = "_")
+
+site_data$CLUSTER_ID <- paste(site_data$EASTING_ROUNDED, 
+                               site_data$NORTHING_ROUNDED, 
+                               sep = "_")
+
+habitat_data$CLUSTER_ID <- paste(habitat_data$EASTING_ROUNDED, 
+                                  habitat_data$NORTHING_ROUNDED, 
+                                  sep = "_")
+
+# How many spatial clusters do we have?
+cat("\nNumber of unique site clusters in invertebrate data:", 
+    length(unique(inv_data$CLUSTER_ID)), "\n")
+cat("Number of unique site clusters in site data:", 
+    length(unique(site_data$CLUSTER_ID)), "\n")
+cat("Number of unique site clusters in habitat data:", 
+    length(unique(habitat_data$CLUSTER_ID)), "\n")
+
+
+################################################################################
+################ PHASE 5: TEMPORAL MATCHING - LINK BY YEAR #####################
+################################################################################
+
+# Check what years overlap
+years_in_inv <- unique(inv_data$YEAR)
+years_in_site <- unique(site_data$YEAR)
+years_in_habitat <- unique(habitat_data$YEAR)
+
+cat("Invertebrate years:", sort(years_in_inv), "\n")
+cat("Site years:", sort(years_in_site), "\n")
+cat("Habitat years:", sort(years_in_habitat), "\n")
+
+# Find overlap
+common_years <- intersect(intersect(years_in_inv, years_in_site), years_in_habitat)
+cat("\nCommon years:", common_years, "\n")
+
+# Check cluster overlap
+cat("\nUnique clusters in invertebrate data:", length(unique(inv_data$CLUSTER_ID)), "\n")
+cat("Unique clusters in site data:", length(unique(site_data$CLUSTER_ID)), "\n")
+cat("Unique clusters in habitat data:", length(unique(habitat_data$CLUSTER_ID)), "\n")
+
+# Check if any cluster IDs match
+inv_clusters <- unique(inv_data$CLUSTER_ID)
+site_clusters <- unique(site_data$CLUSTER_ID)
+habitat_clusters <- unique(habitat_data$CLUSTER_ID)
+
+common_clusters <- intersect(intersect(inv_clusters, site_clusters), habitat_clusters)
+cat("Common clusters across all three:", length(common_clusters), "\n")
+
+
+
+
+
+
+################################################################################
+################ PHASE 6: JOIN DATASETS - CREATE MASTER TABLE ###################
+################################################################################
+
+# Strategy: 
+# 1. Join all three datasets by CLUSTER_ID
+# 2. Filter to keep site data within ±10 years of invertebrate sample
+# 3. Filter to keep habitat data within ±10 years of invertebrate sample
+
+# Step 1: Join invertebrate data with site data by CLUSTER_ID
+joined_inv_site <- merge(inv_data, 
+                         site_data, 
+                         by = "CLUSTER_ID",
+                         suffixes = c("_inv", "_site"))
+
+cat("\nAfter joining invertebrate + site data:", nrow(joined_inv_site), "rows\n")
+
+# Step 2: Join with habitat data by CLUSTER_ID
+habitat_for_join <- habitat_data
+names(habitat_for_join)[names(habitat_for_join) == "YEAR"] <- "YEAR_habitat"
+
+joined_all <- merge(joined_inv_site,
+                    habitat_for_join,
+                    by = "CLUSTER_ID",
+                    suffixes = c("", "_hab"))
+
+cat("After joining with habitat (all matches):", nrow(joined_all), "rows\n")
+
+# Step 3: Filter site data to ±10 years from invertebrate sample
+joined_all$SITE_YEAR_DIFF <- abs(joined_all$YEAR_inv - joined_all$YEAR_site)
+joined_all <- joined_all[joined_all$SITE_YEAR_DIFF <= 10, ]
+
+cat("After filtering site to ±10 year window:", nrow(joined_all), "rows\n")
+
+# Step 4: Filter habitat data to ±10 years from invertebrate sample
+joined_all$HABITAT_YEAR_DIFF <- abs(joined_all$YEAR_inv - joined_all$YEAR_habitat)
+joined_data_full <- joined_all[joined_all$HABITAT_YEAR_DIFF <= 10, ]
+
+cat("After filtering habitat to ±10 year window:", nrow(joined_data_full), "rows\n")
+
+# Step 5: For sites with multiple site/habitat surveys, keep the closest in time
+# Sort by cluster, year_inv, and total time difference
+joined_data_full$TOTAL_YEAR_DIFF <- joined_data_full$SITE_YEAR_DIFF + joined_data_full$HABITAT_YEAR_DIFF
+
+joined_data_full <- joined_data_full[order(joined_data_full$CLUSTER_ID, 
+                                           joined_data_full$YEAR_inv,
+                                           joined_data_full$TOTAL_YEAR_DIFF), ]
+
+# Remove duplicates, keeping first (closest) match for each inv sample
+joined_data_full <- joined_data_full[!duplicated(
+  joined_data_full[, c("CLUSTER_ID", "YEAR_inv", "TAXON_NAME", "TOTAL_ABUNDANCE")]), ]
+
+cat("After keeping closest match per sample:", nrow(joined_data_full), "rows\n")
+
+# Check if we have data
+if(nrow(joined_data_full) == 0) {
+  cat("\nWARNING: Still no matching data!\n")
+} else {
+  cat("\nSuccess! We have a complete dataset.\n")
+  
+  # Look at temporal matching
+  cat("\nTemporal matching summary:\n")
+  cat("Site data - Mean time difference (years):", round(mean(joined_data_full$SITE_YEAR_DIFF), 1), "\n")
+  cat("Site data - Max time difference (years):", max(joined_data_full$SITE_YEAR_DIFF), "\n")
+  cat("Habitat data - Mean time difference (years):", round(mean(joined_data_full$HABITAT_YEAR_DIFF), 1), "\n")
+  cat("Habitat data - Max time difference (years):", max(joined_data_full$HABITAT_YEAR_DIFF), "\n")
+  
+  # Check the first few rows
+  head(joined_data_full[, c("CLUSTER_ID", "YEAR_inv", "YEAR_site", "YEAR_habitat", 
+                            "SITE_YEAR_DIFF", "HABITAT_YEAR_DIFF")])
+}
+
+################################################################################
+############### PHASE 7: SELECT RELEVANT COLUMNS FOR ANALYSIS ##################
+################################################################################
+
+# Our joined dataset has many columns
+# Let's select only the ones we need for modeling
+
+# Species and abundance columns
+species_cols <- c("TAXON_NAME", "TOTAL_ABUNDANCE")
+
+# Environmental variables from site data
+env_cols <- c("ALTITUDE", "SLOPE", "DIST_FROM_SOURCE", "DISCHARGE", 
+              "WIDTH", "DEPTH", "BOULDERS_COBBLES", "PEBBLES_GRAVEL", 
+              "SAND", "SILT_CLAY", "ALKALINITY")
+
+
+# Habitat structure variables  -- ignore this text first time round - this is where you add when you are at phase 9
+# Go back to Phase 7 and update habitat_cols:
+habitat_cols <- c("LEFT_BANKTOP_HEIGHT", 
+                  "CHANNEL_BANKFULL_WIDTH", 
+                  "CHANNEL_WATER_DEPTH", 
+                  "CHANNEL_WATER_WIDTH", 
+                  "RIGHT_BANKTOP_HEIGHT")
+# Spatial and temporal identifiers
+# Spatial and temporal identifiers
+id_cols <- c("CLUSTER_ID", "YEAR_inv", "EASTING", "NORTHING")
+
+# Combine all columns we want to keep
+cols_to_keep <- c(id_cols, species_cols, env_cols, habitat_cols)
+
+# Check which columns actually exist in our data
+# (Some might be missing due to naming differences)
+cols_available <- cols_to_keep[cols_to_keep %in% names(joined_data_full)]
+cols_missing <- cols_to_keep[!cols_to_keep %in% names(joined_data_full)]
+
+if(length(cols_missing) > 0) {
+  cat("\nWARNING: These columns are missing from the data:\n")
+  print(cols_missing)
+  cat("\nAvailable columns that match:\n")
+  print(cols_available)
+}
+
+# Create our analysis dataset with selected columns
+analysis_data <- joined_data_full[, cols_available]
+
+cat("\nAnalysis dataset created with", nrow(analysis_data), "rows and", 
+    ncol(analysis_data), "columns\n")
+
+# Check for missing values
+missing_summary <- colSums(is.na(analysis_data))
+cat("\nMissing values per column:\n")
+print(missing_summary[missing_summary > 0])
+
+
+
+##################################################### sense checking !!
+# Check clusters at different stages
+cat("\nClusters before temporal filtering:", 
+    length(unique(joined_all$CLUSTER_ID)), "\n")
+
+#### we have a problem, what is it ? ################
+cat("Clusters after temporal filtering:", 
+    length(unique(joined_data_full$CLUSTER_ID)), "\n")
+
+# See which clusters survived
+cat("\nClusters in final data:\n")
+print(unique(joined_data_full$CLUSTER_ID))
+
+################################################################################
+# we have an issue with the temporal side of the data, there isnt a great overlap. We will need to change our question! focus on sites
+################################################################################
+################ PHASE 7.1: Re JOIN DATASETS - CREATE MASTER TABLE and loosen temporal filtering ###################
+################################################################################
+
+# Strategy: Join by CLUSTER_ID only (NO TEMPORAL FIT)
+# This assumes site/habitat measurements are representative of conditions
+# even if not from the exact same year
+
+# Step 1: Join invertebrate data with site data by CLUSTER_ID
+joined_inv_site <- merge(inv_data, 
+                         site_data, 
+                         by = "CLUSTER_ID",
+                         suffixes = c("_inv", "_site"))
+
+cat("\nAfter joining invertebrate + site data:", nrow(joined_inv_site), "rows\n")
+
+# Step 2: Join with habitat data by CLUSTER_ID
+habitat_for_join <- habitat_data
+names(habitat_for_join)[names(habitat_for_join) == "YEAR"] <- "YEAR_habitat"
+
+joined_data_full <- merge(joined_inv_site,
+                          habitat_for_join,
+                          by = "CLUSTER_ID",
+                          suffixes = c("", "_hab"))
+
+cat("After joining with habitat:", nrow(joined_data_full), "rows\n")
+
+# Remove duplicates - keep one site/habitat measurement per invertebrate sample
+joined_data_full <- joined_data_full[!duplicated(
+  joined_data_full[, c("CLUSTER_ID", "YEAR_inv", "TAXON_NAME", "TOTAL_ABUNDANCE")]), ]
+
+cat("After removing duplicates:", nrow(joined_data_full), "rows\n")
+
+# Check how many clusters
+cat("Number of clusters in final data:", 
+    length(unique(joined_data_full$CLUSTER_ID)), "\n")
+
+
+####################################################################### now re run phase 7 again without the temporal data ######
+
+
+################################################################################
+################## PHASE 8: EXPLORATORY VISUALIZATION ##########################
+################################################################################
+
+# Before modeling, let's visualize the data to understand patterns
+
+# 8.1 - Plot 1: How many species do we have?
+species_counts <- table(analysis_data$TAXON_NAME)
+species_counts_sorted <- sort(species_counts, decreasing = TRUE)
+
+# Bar plot of top 20 most abundant species
+top_species <- head(species_counts_sorted, 20)
+
+par(mar = c(6, 10, 4, 2))  # Increase left margin for long names, change the 10 to include names
+barplot(top_species, 
+        horiz = TRUE, 
+        las = 1,
+        main = "Top 20 Most Frequently Recorded Species",
+        xlab = "Number of Records",
+        col = "steelblue")
+
+
+# 8.2 - Plot 2: Species richness over time
+# How many unique species per year?
+richness_by_year <- aggregate(TAXON_NAME ~ YEAR_inv, 
+                              data = analysis_data,
+                              FUN = function(x) length(unique(x)))
+names(richness_by_year)[2] <- "Species_Richness"
+
+plot(richness_by_year$YEAR_inv, 
+     richness_by_year$Species_Richness,
+     type = "b",
+     pch = 19,
+     col = "darkgreen",
+     main = "Species Richness Over Time",
+     xlab = "Year",
+     ylab = "Number of Unique Species",
+     lwd = 2)
+grid()
+
+
+# 8.3 - Plot 3: Total abundance over time
+abundance_by_year <- aggregate(TOTAL_ABUNDANCE ~ YEAR_inv, 
+                               data = analysis_data,
+                               FUN = sum)
+
+plot(abundance_by_year$YEAR_inv, 
+     abundance_by_year$TOTAL_ABUNDANCE,
+     type = "b",
+     pch = 19,
+     col = "darkred",
+     main = "Total Invertebrate Abundance Over Time",
+     xlab = "Year",
+     ylab = "Total Abundance",
+     lwd = 2)
+grid()
+
+
+
+# 8.4 - Plot 4: Species composition by cluster
+# Since we have limited clusters, let's show species counts per cluster
+
+species_per_cluster <- aggregate(TAXON_NAME ~ CLUSTER_ID,
+                                 data = analysis_data,
+                                 FUN = function(x) length(unique(x)))
+names(species_per_cluster)[2] <- "Species_Count"
+
+barplot(species_per_cluster$Species_Count,
+        names.arg = species_per_cluster$CLUSTER_ID,
+        main = "Species Richness by Site Cluster",
+        xlab = "Cluster ID",
+        ylab = "Number of Unique Species",
+        col = "darkgreen",
+        las = 2)  # Rotate labels
+
+# Alternative: Show the most abundant species
+top_10_species <- head(species_counts_sorted, 10)
+
+par(mar = c(5, 12, 4, 2))
+barplot(top_10_species,
+        horiz = TRUE,
+        las = 1,
+        main = "Top 10 Most Abundant Species",
+        xlab = "Total Abundance",
+        col = "coral")
+par(mar = c(5, 4, 4, 2))  # Reset margins
+
+
+# 8.5 - Plot 5: Map of sampling sites
+# Simple scatter plot of site locations
+site_locations <- unique(analysis_data[, c("EASTING", "NORTHING", "CLUSTER_ID")])
+
+plot(site_locations$EASTING, 
+     site_locations$NORTHING,
+     pch = 19,
+     col = "blue",
+     cex = 1.5,
+     main = "Spatial Distribution of Sampling Sites",
+     xlab = "Easting (m)",
+     ylab = "Northing (m)",
+     asp = 1)  # Equal aspect ratio for proper map proportions
+grid() # this should generate a plot with one dot in the middle... whats going on?
+
+#### we have done lots of quality filtering, gone from lots of sites to 1 site with lots of data that meets our requirement, 
+## imagine if you did this at the catchment scale? or regional scale? could be quicker than working at a single site.
+
+
+# if we run our range (which i did) at 1km we end up with one cluster, we cant run random forest on one cluster, why? (you find out)
+# at 1km radios we have:
+# One well-studied site (multiple years: 2020-2021)
+# 90 different species recorded
+# Temporal trends in abundance
+# Environmental and habitat data
+
+
+# lets look at the environmental data 
+# 8.6 - Plot 6: Environmental gradients
+# Let's look at the range of environmental conditions
+
+# Check which environmental variables we have with data
+env_vars_present <- env_cols[env_cols %in% names(analysis_data)]
+
+if(length(env_vars_present) > 0) {
+  # Create a multi-panel plot
+  n_vars <- length(env_vars_present)
+  par(mfrow = c(ceiling(n_vars/3), 3))  # Arrange in grid
+  
+  for(var in env_vars_present) {
+    hist(analysis_data[[var]], 
+         main = paste("Distribution of", var),
+         xlab = var,
+         col = "lightblue",
+         breaks = 20)
+  }
+  
+  # Reset plotting parameters
+  par(mfrow = c(1, 1))
+}
+
+
+
+
+################################################################################
+############# PHASE 9: PREPARE DATA FOR RANDOM FOREST #########################
+################################################################################
+
+# Random Forest requires:
+# 1. A response variable (what we want to predict)
+# 2. Predictor variables (environmental/habitat measurements)
+# 3. Complete cases (no missing values)
+
+# For this workshop, we'll explore two modeling approaches:
+
+# APPROACH 1: Predict species richness at each site-year combination
+# First, calculate richness for each site and year
+richness_data <- aggregate(TAXON_NAME ~ CLUSTER_ID + YEAR_inv, 
+                           data = analysis_data,
+                           FUN = function(x) length(unique(x)))
+names(richness_data)[3] <- "SPECIES_RICHNESS"
+
+# Add total abundance as well
+abundance_sum <- aggregate(TOTAL_ABUNDANCE ~ CLUSTER_ID + YEAR_inv,
+                           data = analysis_data,
+                           FUN = sum)
+names(abundance_sum)[3] <- "TOTAL_ABUNDANCE_SUM"
+
+# Merge richness and abundance
+site_summary <- merge(richness_data, abundance_sum, 
+                      by = c("CLUSTER_ID", "YEAR_inv"))  # Changed from YEAR
+
+# Now we need to add environmental and habitat variables
+# Get the environmental data for each site-year (average if multiple records)
+env_vars_available <- env_vars_present[env_vars_present %in% names(analysis_data)]
+
+if(length(env_vars_available) > 0) {
+  env_by_site <- aggregate(analysis_data[, env_vars_available],
+                           by = list(CLUSTER_ID = analysis_data$CLUSTER_ID,
+                                     YEAR_inv = analysis_data$YEAR_inv),  # Changed from YEAR
+                           FUN = mean,
+                           na.rm = TRUE)
+  
+  # Merge with site summary
+  site_summary <- merge(site_summary, env_by_site, 
+                        by = c("CLUSTER_ID", "YEAR_inv"))  # Changed
+}
+
+# Get habitat variables
+habitat_vars_available <- habitat_cols[habitat_cols %in% names(analysis_data)]
+
+if(length(habitat_vars_available) > 0) {
+  habitat_by_site <- aggregate(analysis_data[, habitat_vars_available],
+                               by = list(CLUSTER_ID = analysis_data$CLUSTER_ID,
+                                         YEAR_inv = analysis_data$YEAR_inv),  # Changed from YEAR
+                               FUN = mean,
+                               na.rm = TRUE)
+  
+  # Merge with site summary
+  site_summary <- merge(site_summary, habitat_by_site,
+                        by = c("CLUSTER_ID", "YEAR_inv"))  # Changed
+}
+
+cat("\nSite summary data prepared with", nrow(site_summary), "rows\n")
+head(site_summary)
+
+################################################################################
+############# PHASE 10: HANDLE MISSING VALUES & PREPARE FOR RF ################
+################################################################################
+
+# Random Forest cannot handle missing values (NA)
+# We need to either remove rows with NAs or impute them
+
+# Check how many complete cases we have in site summary data
+complete_cases <- complete.cases(site_summary)
+n_complete <- sum(complete_cases)
+n_total <- nrow(site_summary)
+
+cat("\nComplete cases (no missing values):", n_complete, "out of", n_total, "\n")
+cat("Percentage complete:", round(100 * n_complete / n_total, 1), "%\n")
+
+# If we have too many missing values, we might need to remove some variables
+# or use imputation (replacing NAs with reasonable values)
+
+# For this workshop, we'll remove rows with missing values
+# This is the simplest approach for beginners
+
+site_summary_complete <- site_summary[complete_cases, ]
+
+cat("\nAfter removing incomplete cases:", nrow(site_summary_complete), "rows remaining\n")
+
+# Check if we still have enough data
+if(nrow(site_summary_complete) < 30) {
+  cat("\nWARNING: Very few complete cases!\n")
+  cat("Consider removing variables with many missing values.\n")
+  cat("Missing value counts:\n")
+  print(colSums(is.na(site_summary)))
+}
+
+###### we get an error!, what happens if we run it with less variables? you need to go back to phase 7 and add this in ##### 
+### dont run it here. Then run phase 9 again and proceed to 10 ###
+
+# Go back to Phase 7 and update habitat_cols:
+habitat_cols <- c("LEFT_BANKTOP_HEIGHT", 
+                  "CHANNEL_BANKFULL_WIDTH", 
+                  "CHANNEL_WATER_DEPTH", 
+                  "CHANNEL_WATER_WIDTH", 
+                  "RIGHT_BANKTOP_HEIGHT")
+
+################################################################################
+####################### PHASE 11: BUILD RANDOM FOREST ##########################
+################################################################################
+
+# Now we're ready to build our first Random Forest model!
+
+# MODEL 1: Predict species richness from environmental variables
+
+# Define response variable (what we want to predict)
+response_var <- "SPECIES_RICHNESS"
+
+# Define predictor variables (environmental + habitat)
+# Remove ID columns and response variable
+predictor_cols <- setdiff(names(site_summary_complete), 
+                          c("CLUSTER_ID", "YEAR", 
+                            "SPECIES_RICHNESS", "TOTAL_ABUNDANCE_SUM"))
+
+cat("\nPredictor variables for Random Forest:\n")
+print(predictor_cols)
+
+# Create the formula for Random Forest
+# Formula format: response ~ predictor1 + predictor2 + ...
+rf_formula <- as.formula(paste(response_var, "~", 
+                               paste(predictor_cols, collapse = " + ")))
+
+cat("\nRandom Forest formula:\n")
+print(rf_formula)
+
+# Build the Random Forest model
+# ntree = number of trees (500 is a good default)
+# mtry = number of variables randomly sampled at each split
+#        (default is usually sqrt(number of predictors))
+# importance = TRUE means we want variable importance scores
+
+cat("\nBuilding Random Forest model... this may take a moment...\n")
+
+rf_model <- randomForest(rf_formula,
+                         data = site_summary_complete,
+                         ntree = 500,
+                         importance = TRUE,
+                         na.action = na.omit)
+
+# Display model summary
+print(rf_model)
+
+# The model output shows:
+# - Type of random forest (regression)
+# - Number of trees grown
+# - Number of variables tried at each split
+# - Mean of squared residuals (MSR) - lower is better
+# - % Var explained - higher is better (like R-squared)
+
+
+################################################################################
+#################### PHASE 12: VARIABLE IMPORTANCE #############################
+################################################################################
+
+# One of the most useful outputs from Random Forest is variable importance
+# This tells us which environmental variables are most important for
+# predicting species richness
+
+# Extract variable importance
+importance_scores <- importance(rf_model)
+
+# Sort by importance (%IncMSE is most commonly used)
+importance_sorted <- importance_scores[order(importance_scores[, 1], 
+                                             decreasing = TRUE), ]
+
+cat("\nVariable Importance (sorted):\n")
+print(round(importance_sorted, 2))
+
+# Plot variable importance
+varImpPlot(rf_model,
+           main = "Variable Importance for Species Richness",
+           pch = 19,
+           col = "darkblue")
+
+# The plot shows two measures:
+# %IncMSE: How much prediction error increases when variable is excluded
+# IncNodePurity: Total decrease in node impurities from splitting on variable
+
+
+################################################################################
+################### PHASE 13: MODEL PREDICTIONS & EVALUATION ###################
+################################################################################
+
+# Let's see how well our model predicts species richness
+
+# Get predictions from the model
+predictions <- predict(rf_model, site_summary_complete)
+
+# Compare predictions to actual values
+actual_values <- site_summary_complete$SPECIES_RICHNESS
+
+# Create a scatter plot of predicted vs actual
+plot(actual_values, predictions,
+     pch = 19,
+     col = "darkgreen",
+     main = "Random Forest Predictions vs Actual Species Richness",
+     xlab = "Actual Species Richness",
+     ylab = "Predicted Species Richness",
+     xlim = range(c(actual_values, predictions)),
+     ylim = range(c(actual_values, predictions)))
+
+# Add 1:1 reference line (perfect predictions would fall on this line)
+abline(0, 1, col = "red", lwd = 2, lty = 2)
+grid()
+
+# Calculate prediction accuracy metrics
+# Mean Absolute Error (MAE) - average difference between predicted and actual
+mae <- mean(abs(predictions - actual_values))
+
+# Root Mean Squared Error (RMSE) - penalizes large errors more
+rmse <- sqrt(mean((predictions - actual_values)^2))
+
+# R-squared (proportion of variance explained)
+ss_res <- sum((actual_values - predictions)^2)
+ss_tot <- sum((actual_values - mean(actual_values))^2)
+r_squared <- 1 - (ss_res / ss_tot)
+
+cat("\nModel Performance Metrics:\n")
+cat("Mean Absolute Error (MAE):", round(mae, 2), "\n")
+cat("Root Mean Squared Error (RMSE):", round(rmse, 2), "\n")
+cat("R-squared:", round(r_squared, 3), "\n")
+
+
+################################################################################
+############### PHASE 14: PARTIAL DEPENDENCE PLOTS #############################
+################################################################################
+# Test with first variable to see structure
+pd_test <- partial(rf_model, 
+                   pred.var = top_vars[1],
+                   train = site_summary_complete)
+cat("\nColumn names in partial dependence output:\n")
+print(names(pd_test))
+print(head(pd_test))
+
+
+# Partial dependence plots show how the predicted species richness changes
+# as we vary one predictor variable while holding others constant
+
+# For this, we need the 'pdp' package
+# install.packages("pdp")
+library(pdp)
+
+# Get the top 3 most important variables
+top_vars <- rownames(importance_sorted)[1:min(3, nrow(importance_sorted))]
+
+cat("\nCreating partial dependence plots for top variables:\n")
+print(top_vars)
+
+# Create partial dependence plots
+par(mfrow = c(1, length(top_vars)))
+
+for(var in top_vars) {
+  # Create partial dependence data
+  pd_data <- partial(rf_model, 
+                     pred.var = var,
+                     train = site_summary_complete)
+  
+  # Plot - use variable name for x-axis, yhat for y-axis
+  plot(pd_data[[var]], pd_data$yhat,
+       type = "l",
+       lwd = 2,
+       col = "blue",
+       main = paste("Partial Dependence:", var),
+       xlab = var,
+       ylab = "Predicted Species Richness")
+  grid()
+}
+
+# Reset plotting parameters
+par(mfrow = c(1, 1))
+
+# Reset plotting parameters
+par(mfrow = c(1, 1))
+
+
+################################################################################
+####################### PHASE 15: MODEL COMPARISON #############################
+################################################################################
+
+# Let's try a simpler model and compare to Random Forest
+
+# Build a linear regression model using the same variables
+lm_model <- lm(rf_formula, data = site_summary_complete)
+
+# Summary of linear model
+cat("\nLinear Regression Model Summary:\n")
+print(summary(lm_model))
+
+# Get predictions from linear model
+lm_predictions <- predict(lm_model, site_summary_complete)
+
+# Compare both models visually
+plot(actual_values, predictions,
+     pch = 19,
+     col = "darkgreen",
+     main = "Model Comparison: Random Forest vs Linear Regression",
+     xlab = "Actual Species Richness",
+     ylab = "Predicted Species Richness",
+     xlim = range(c(actual_values, predictions, lm_predictions)),
+     ylim = range(c(actual_values, predictions, lm_predictions)))
+
+# Add linear model predictions
+points(actual_values, lm_predictions,
+       pch = 19,
+       col = "orange")
+
+# Add 1:1 line
+abline(0, 1, col = "red", lwd = 2, lty = 2)
+
+# Add legend
+legend("topleft",
+       legend = c("Random Forest", "Linear Regression", "Perfect Prediction"),
+       col = c("darkgreen", "orange", "red"),
+       pch = c(19, 19, NA),
+       lty = c(NA, NA, 2),
+       lwd = c(NA, NA, 2))
+grid()
+
+# Calculate metrics for linear model
+lm_mae <- mean(abs(lm_predictions - actual_values))
+lm_rmse <- sqrt(mean((lm_predictions - actual_values)^2))
+lm_r_squared <- summary(lm_model)$r.squared
+
+# Compare metrics
+cat("\nModel Performance Comparison:\n")
+cat("\n                    MAE     RMSE    R-squared\n")
+cat("Random Forest:    ", round(mae, 2), "   ", 
+    round(rmse, 2), "   ", round(r_squared, 3), "\n")
+cat("Linear Regression:", round(lm_mae, 2), "   ", 
+    round(lm_rmse, 2), "   ", round(lm_r_squared, 3), "\n")
+
+
+################################################################################
+########################### END OF MAIN SCRIPT #################################
+################################################################################
+
+cat("\n\nWorkshop script complete!\n")
+cat("\nNext steps you could explore:\n")
+cat("1. Try different cluster_radius values (line 172)\n")
+cat("2. Model individual species instead of richness\n")
+cat("3. Add temporal trends (YEAR as a predictor)\n")
+cat("4. Tune Random Forest parameters (ntree, mtry)\n")
+cat("5. Try cross-validation for more robust evaluation\n")
+cat("6. Explore interactions between environmental variables\n")
+
+################################################################################
+
+
+
+################################################################################
+
+
+############################################################################### Extra steps, run this, but what happens?
+
+# Now we need to match data across the three datasets, what happens?
+# We have several options depending on how strict we want to be
+
+# OPTION 1: Exact year match
+# Only keep data where all three datasets have the same year
+
+# First, find which years are present in ALL three datasets
+years_in_inv <- unique(inv_data$YEAR)
+years_in_site <- unique(site_data$YEAR)
+years_in_habitat <- unique(habitat_data$YEAR)
+
+# Find years that appear in all three
+common_years <- intersect(intersect(years_in_inv, years_in_site), years_in_habitat)
+
+cat("\nYears present in all three datasets:", common_years, "\n")
+cat("Number of common years:", length(common_years), "\n")
+
+# Filter each dataset to only keep common years
+inv_data_matched <- inv_data[inv_data$YEAR %in% common_years, ]
+site_data_matched <- site_data[site_data$YEAR %in% common_years, ]
+habitat_data_matched <- habitat_data[habitat_data$YEAR %in% common_years, ]
+
+cat("\nAfter exact year matching:\n")
+cat("Invertebrate records:", nrow(inv_data_matched), "\n")
+cat("Site records:", nrow(site_data_matched), "\n")
+cat("Habitat records:", nrow(habitat_data_matched), "\n")
+
+# OPTION 2: Keep all invertebrate data, allow flexible year matching
+# This is useful if exact matching removes too much data
+# We'll keep this option commented out but available
+
+# # Allow site/habitat data from ±2 years of invertebrate sample
+# inv_data_flexible <- inv_data
+# # For each invertebrate record, we'd find the nearest site/habitat data
+# # This requires more complex code, so we'll stick with exact matching for now
+
