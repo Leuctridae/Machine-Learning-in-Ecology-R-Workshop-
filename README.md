@@ -14,6 +14,8 @@ Facilitated by **Arron Watson** (Environment Agency & University of Birmingham)
 ## 📦 Status
 
 **Materials will be uploaded by 24th Feb**
+The zip file is on the tab "code & scripts" where it says main, change the tab.
+
 
 This repository will include:
 - R scripts for hands-on exercises
