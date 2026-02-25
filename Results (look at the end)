@@ -21,8 +21,8 @@ After spatial clustering (10km radius) and temporal matching (±10 years for sit
 
 ### 1. Temporal Trends in Invertebrate Abundance
 
-https://github.com/Leuctridae/Machine-Learning-in-Ecology-R-Workshop-/blob/53716d81dd2e0fa93c62e7bd073a9150f91b1722/total_invert.jpeg
-![Total Abundance Over Time]
+![Total Abundance Over Time](https://github.com/Leuctridae/Machine-Learning-in-Ecology-R-Workshop-/blob/53716d81dd2e0fa93c62e7bd073a9150f91b1722/total_invert.jpeg)
+
 
 **Figure 1: Temporal trend in total macroinvertebrate abundance across sampled sites (2020-2021).**
 
