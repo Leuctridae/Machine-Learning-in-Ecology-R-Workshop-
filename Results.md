@@ -90,7 +90,7 @@ The histograms show the range and distribution of key predictors:
 
 ### 4. Variable Importance
 
-![Variable Importance](path/to/your/plot4.png)
+![Variable Importance](https://github.com/Leuctridae/Machine-Learning-in-Ecology-R-Workshop-/blob/a052bda0adc86731bebe0cd72c92c4f60709e320/random_MSE.jpeg)
 
 **Figure 4: Variable importance from Random Forest model predicting macroinvertebrate species richness.**
 
