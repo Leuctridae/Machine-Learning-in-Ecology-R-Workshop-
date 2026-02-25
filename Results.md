@@ -216,7 +216,7 @@ Partial dependence plots show how predicted species richness changes as one vari
 
 ### 7. Model Comparison: Random Forest vs Linear Regression
 
-![Model Comparison](path/to/your/plot7.png)
+![Model Comparison](https://github.com/Leuctridae/Machine-Learning-in-Ecology-R-Workshop-/blob/5d6240a62ae610e3cb0e5dbbe7bb6898388330e1/linearreg.jpeg)
 
 **Figure 7: Comparison of Random Forest (green) and linear regression (orange) predictions against observed species richness.**
 
