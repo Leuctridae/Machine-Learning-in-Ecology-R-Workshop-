@@ -40,7 +40,7 @@ This temporal pattern demonstrates why YEAR was included as a potential predicto
 
 ### 2. Spatial Distribution of Sampling Sites
 
-![Spatial Distribution](path/to/your/plot2.png)
+![Spatial Distribution](https://github.com/Leuctridae/Machine-Learning-in-Ecology-R-Workshop-/blob/76d2b054da2df1947199ef5b25c0dc2c1a3cb4c6/spatialdist.jpeg)
 
 **Figure 2: Geographic distribution of sampling locations within the study catchment.**
 
