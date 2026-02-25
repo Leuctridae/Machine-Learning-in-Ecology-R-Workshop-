@@ -134,7 +134,7 @@ Measures the total decrease in node impurities (variance for regression) from al
 
 ### 5. Model Predictions
 
-![RF Predictions](https://github.com/Leuctridae/Machine-Learning-in-Ecology-R-Workshop-/blob/a052bda0adc86731bebe0cd72c92c4f60709e320/random_MSE.jpeg)
+![RF Predictions](https://github.com/Leuctridae/Machine-Learning-in-Ecology-R-Workshop-/blob/201bfe0bd388b22949318316c6fbc9a9b86febd6/actualvs.jpeg)
 
 **Figure 5: Observed versus predicted species richness from Random Forest model.**
 
