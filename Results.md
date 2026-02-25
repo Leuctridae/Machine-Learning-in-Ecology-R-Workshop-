@@ -57,7 +57,7 @@ The environmental gradients captured across these sites enable the Random Forest
 
 ### 3. Environmental Variable Distributions
 
-![Environmental Variables](path/to/your/plot3.png)
+![Environmental Variables](https://github.com/Leuctridae/Machine-Learning-in-Ecology-R-Workshop-/blob/5e2460d1450ba6dfbeac03beb6031100806b7bd6/enviro.jpeg)
 
 **Figure 3: Frequency distributions of environmental predictor variables used in Random Forest modeling.**
 
