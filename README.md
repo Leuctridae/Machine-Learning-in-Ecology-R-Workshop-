@@ -55,7 +55,11 @@ Please ensure you have installed before the workshop:
 
 ################################################################################################ 
 
-# Constructing a RF model #
+
+# Workshop outputs #
+
+
+## 1) Constructing a RF model ##
 * there are a lot of different things to consider but here is a demonstration of a model with bootsrapping *
 
 ################################################################################
