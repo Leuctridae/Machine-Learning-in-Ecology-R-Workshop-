@@ -333,8 +333,46 @@ if(nrow(joined_data_full) == 0) {
 ############### PHASE 7: SELECT RELEVANT COLUMNS FOR ANALYSIS ##################
 ################################################################################
 
-# Our joined dataset has many columns
-# Let's select only the ones we need for modeling
+# IMPORTANT: Before selecting columns, we need to check our data quality
+# Let's see how many clusters survived the temporal filtering from Phase 6
+
+cat("\nData quality check:\n")
+cat("Clusters in joined data:", length(unique(joined_data_full$CLUSTER_ID)), "\n")
+cat("Total rows:", nrow(joined_data_full), "\n")
+
+# If we have very few clusters (1-2), the temporal filtering was too strict
+# We'll need to rejoin without temporal filtering
+
+if(length(unique(joined_data_full$CLUSTER_ID)) < 3) {
+  cat("\nWARNING: Only", length(unique(joined_data_full$CLUSTER_ID)), 
+      "cluster(s) after temporal filtering!\n")
+  cat("Re-joining datasets WITHOUT temporal filtering for more spatial variation...\n\n")
+  
+  # Re-join by CLUSTER_ID only (no temporal filtering)
+  joined_inv_site <- merge(inv_data, 
+                           site_data, 
+                           by = "CLUSTER_ID",
+                           suffixes = c("_inv", "_site"))
+  
+  habitat_for_join <- habitat_data
+  names(habitat_for_join)[names(habitat_for_join) == "YEAR"] <- "YEAR_habitat"
+  
+  joined_data_full <- merge(joined_inv_site,
+                            habitat_for_join,
+                            by = "CLUSTER_ID",
+                            suffixes = c("", "_hab"))
+  
+  # Remove duplicates
+  joined_data_full <- joined_data_full[!duplicated(
+    joined_data_full[, c("CLUSTER_ID", "YEAR_inv", "TAXON_NAME", "TOTAL_ABUNDANCE")]), ]
+  
+  cat("After re-joining without temporal filtering:\n")
+  cat("Clusters:", length(unique(joined_data_full$CLUSTER_ID)), "\n")
+  cat("Rows:", nrow(joined_data_full), "\n\n")
+}
+
+################################################################################
+# Now proceed with column selection
 
 # Species and abundance columns
 species_cols <- c("TAXON_NAME", "TOTAL_ABUNDANCE")
@@ -344,15 +382,12 @@ env_cols <- c("ALTITUDE", "SLOPE", "DIST_FROM_SOURCE", "DISCHARGE",
               "WIDTH", "DEPTH", "BOULDERS_COBBLES", "PEBBLES_GRAVEL", 
               "SAND", "SILT_CLAY", "ALKALINITY")
 
-
-# Habitat structure variables  -- ignore this text first time round - this is where you add when you are at phase 9
-# Go back to Phase 7 and update habitat_cols:
 habitat_cols <- c("LEFT_BANKTOP_HEIGHT", 
                   "CHANNEL_BANKFULL_WIDTH", 
                   "CHANNEL_WATER_DEPTH", 
                   "CHANNEL_WATER_WIDTH", 
                   "RIGHT_BANKTOP_HEIGHT")
-# Spatial and temporal identifiers
+
 # Spatial and temporal identifiers
 id_cols <- c("CLUSTER_ID", "YEAR_inv", "EASTING", "NORTHING")
 
@@ -360,7 +395,6 @@ id_cols <- c("CLUSTER_ID", "YEAR_inv", "EASTING", "NORTHING")
 cols_to_keep <- c(id_cols, species_cols, env_cols, habitat_cols)
 
 # Check which columns actually exist in our data
-# (Some might be missing due to naming differences)
 cols_available <- cols_to_keep[cols_to_keep %in% names(joined_data_full)]
 cols_missing <- cols_to_keep[!cols_to_keep %in% names(joined_data_full)]
 
@@ -381,63 +415,6 @@ cat("\nAnalysis dataset created with", nrow(analysis_data), "rows and",
 missing_summary <- colSums(is.na(analysis_data))
 cat("\nMissing values per column:\n")
 print(missing_summary[missing_summary > 0])
-
-
-
-##################################################### sense checking !!
-# Check clusters at different stages
-cat("\nClusters before temporal filtering:", 
-    length(unique(joined_all$CLUSTER_ID)), "\n")
-
-#### we have a problem, what is it ? ################
-cat("Clusters after temporal filtering:", 
-    length(unique(joined_data_full$CLUSTER_ID)), "\n")
-
-# See which clusters survived
-cat("\nClusters in final data:\n")
-print(unique(joined_data_full$CLUSTER_ID))
-
-################################################################################
-# we have an issue with the temporal side of the data, there isnt a great overlap. We will need to change our question! focus on sites
-################################################################################
-################ PHASE 7.1: Re JOIN DATASETS - CREATE MASTER TABLE and loosen temporal filtering ###################
-################################################################################
-
-# Strategy: Join by CLUSTER_ID only (NO TEMPORAL FIT)
-# This assumes site/habitat measurements are representative of conditions
-# even if not from the exact same year
-
-# Step 1: Join invertebrate data with site data by CLUSTER_ID
-joined_inv_site <- merge(inv_data, 
-                         site_data, 
-                         by = "CLUSTER_ID",
-                         suffixes = c("_inv", "_site"))
-
-cat("\nAfter joining invertebrate + site data:", nrow(joined_inv_site), "rows\n")
-
-# Step 2: Join with habitat data by CLUSTER_ID
-habitat_for_join <- habitat_data
-names(habitat_for_join)[names(habitat_for_join) == "YEAR"] <- "YEAR_habitat"
-
-joined_data_full <- merge(joined_inv_site,
-                          habitat_for_join,
-                          by = "CLUSTER_ID",
-                          suffixes = c("", "_hab"))
-
-cat("After joining with habitat:", nrow(joined_data_full), "rows\n")
-
-# Remove duplicates - keep one site/habitat measurement per invertebrate sample
-joined_data_full <- joined_data_full[!duplicated(
-  joined_data_full[, c("CLUSTER_ID", "YEAR_inv", "TAXON_NAME", "TOTAL_ABUNDANCE")]), ]
-
-cat("After removing duplicates:", nrow(joined_data_full), "rows\n")
-
-# Check how many clusters
-cat("Number of clusters in final data:", 
-    length(unique(joined_data_full$CLUSTER_ID)), "\n")
-
-
-####################################################################### now re run phase 7 again without the temporal data ######
 
 
 ################################################################################
@@ -578,7 +555,6 @@ if(length(env_vars_present) > 0) {
   # Reset plotting parameters
   par(mfrow = c(1, 1))
 }
-
 
 
 
@@ -725,7 +701,7 @@ cat("\nBuilding Random Forest model... this may take a moment...\n")
 
 rf_model <- randomForest(rf_formula,
                          data = site_summary_complete,
-                         ntree = 500,
+                         ntree = 1000,
                          importance = TRUE,
                          na.action = na.omit)
 
