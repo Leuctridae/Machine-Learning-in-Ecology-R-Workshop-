@@ -53,6 +53,55 @@ Please ensure you have installed before the workshop:
 # Watch this to understand how random forest works in r - https://www.youtube.com/watch?v=6EXPYzbfLCE&t=1s 
 
 
+################################################################################################ 
+
+# Constructing a RF model #
+* there are a lot of different things to consider but here is a demonstration of a model with bootsrapping *
+
+################################################################################
+#################### ROBUST RANDOM FOREST MODEL STRUCTURE ######################
+################################################################################
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Build robust Random Forest model
+rf_model_robust <- randomForest(
+  formula = rf_formula,                    # Your response ~ predictors
+  data = site_summary_complete,            # Training data
+  
+  # ENSEMBLE PARAMETERS
+  ntree = 1000,                            # Number of trees (500-2000 typical)
+  
+  # BOOTSTRAP PARAMETERS  
+  replace = TRUE,                          # Bootstrap sampling (default)
+  sampsize = floor(0.600 * nrow(site_summary_complete)),  # ~60% per tree (or higher)
+  
+  # VARIABLE SELECTION
+  mtry = floor(sqrt(ncol(site_summary_complete) - 1)),  # Variables per split
+  
+  # NODE SPLITTING
+  nodesize = 5,                            # Min observations in terminal nodes, play around with this.
+  maxnodes = NULL,                         # No limit on tree depth
+  
+  # MODEL EVALUATION
+  importance = TRUE,                       # Calculate variable importance
+  keep.forest = TRUE,                      # Save the forest (for predictions)
+  
+  # ERROR ESTIMATION
+  do.trace = FALSE                         # Don't print progress
+)
+
+# Display model summary
+print(rf_model_robust)
+
+# Key robust features:
+# 1. ntree = 1000: Large ensemble for stable predictions 
+# 2. replace = TRUE: Standard bootstrap for tree diversity
+# 3. mtry controls randomness: sqrt(p) balances bias-variance
+# 4. nodesize = 5: Prevents overfitting to noise
+# 5. OOB error: Built-in cross-validation
+
 ---
 
 ## 📧 Contact
