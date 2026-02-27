@@ -301,7 +301,7 @@ The answer depends on your goal:
 
 ### Dataset Limitations
 
-1. **Small sample size** (n=16 site-year combinations)
+1. **Small sample size** (n=16 site-year combinations for richness)
    - Limits statistical power
    - Increases risk of overfitting
    - Reduces ability to detect complex interactions
