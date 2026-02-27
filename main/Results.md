@@ -157,6 +157,7 @@ Points represent the 16 site-year combinations. Proximity to the red dashed 1:1 
 - **Low variance explained** (0.52%) indicates most variation is unexplained
 - **Underprediction at high richness** (site with ~90 species is poorly predicted)
 - Small dataset limits model training and validation
+- Should we go back to the question? use a different method.
 
 **Why is variance explained so low?**
 
