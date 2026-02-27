@@ -278,7 +278,7 @@ The answer depends on your goal:
 
 ### Model Performance
 
-- Random Forest successfully identified ecologically meaningful predictors
+- Random Forest successfully identified ecologically meaningful predictors - but is the result robust? what about random sampling.
 - Low overall variance explained (0.52%) reflects dataset limitations (n=16) and unmeasured variables
 - Partial dependence plots reveal clear non-linear relationships consistent with river ecology theory
 - Both Random Forest and linear regression face challenges with small sample size
