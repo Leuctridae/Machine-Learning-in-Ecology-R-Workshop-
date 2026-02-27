@@ -56,21 +56,20 @@ Please ensure you have installed before the workshop:
 ################################################################################################ 
 
 
-# Workshop outputs #
-
+# 📋 Workshop outputs #
 
 ## 1) Constructing a RF model ##
 * there are a lot of different things to consider but here is a demonstration of a model with bootsrapping *
 
-################################################################################
-#################### ROBUST RANDOM FOREST MODEL STRUCTURE ######################
-################################################################################
+  ################################################################################
+  #################### ROBUST RANDOM FOREST MODEL STRUCTURE ######################
+  ################################################################################
 
-### Set seed for reproducibility
-set.seed(123)
+  ### Set seed for reproducibility
+  set.seed(123)
 
-### Build robust Random Forest model
-rf_model_robust <- randomForest(
+  ### Build robust Random Forest model
+  rf_model_robust <- randomForest(
   formula = rf_formula,                    # Your response ~ predictors
   data = site_summary_complete,            # Training data
   
@@ -94,17 +93,17 @@ rf_model_robust <- randomForest(
   
   ### ERROR ESTIMATION
   do.trace = FALSE                         # Don't print progress
-)
+  )
 
-### Display model summary
-print(rf_model_robust)
+  ### Display model summary
+  print(rf_model_robust)
 
-## Key robust features:
-## 1. ntree = 1000: Large ensemble for stable predictions 
-## 2. replace = TRUE: Standard bootstrap for tree diversity
-## 3. mtry controls randomness: sqrt(p) balances bias-variance
-## 4. nodesize = 5: Prevents overfitting to noise
-## 5. OOB error: Built-in cross-validation
+  ## Key robust features:
+   1. ntree = 1000: Large ensemble for stable predictions 
+   2. replace = TRUE: Standard bootstrap for tree diversity
+   3. mtry controls randomness: sqrt(p) balances bias-variance
+   4. nodesize = 5: Prevents overfitting to noise
+   5. OOB error: Built-in cross-validation
 
 ---
 
