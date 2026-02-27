@@ -100,11 +100,11 @@ rf_model_robust <- randomForest(
 print(rf_model_robust)
 
 ## Key robust features:
-# 1. ntree = 1000: Large ensemble for stable predictions 
-# 2. replace = TRUE: Standard bootstrap for tree diversity
-# 3. mtry controls randomness: sqrt(p) balances bias-variance
-# 4. nodesize = 5: Prevents overfitting to noise
-# 5. OOB error: Built-in cross-validation
+## 1. ntree = 1000: Large ensemble for stable predictions 
+## 2. replace = TRUE: Standard bootstrap for tree diversity
+## 3. mtry controls randomness: sqrt(p) balances bias-variance
+## 4. nodesize = 5: Prevents overfitting to noise
+## 5. OOB error: Built-in cross-validation
 
 ---
 
