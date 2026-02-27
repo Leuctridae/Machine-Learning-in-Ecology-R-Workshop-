@@ -66,40 +66,40 @@ Please ensure you have installed before the workshop:
 #################### ROBUST RANDOM FOREST MODEL STRUCTURE ######################
 ################################################################################
 
-# Set seed for reproducibility
+### Set seed for reproducibility
 set.seed(123)
 
-# Build robust Random Forest model
+### Build robust Random Forest model
 rf_model_robust <- randomForest(
   formula = rf_formula,                    # Your response ~ predictors
   data = site_summary_complete,            # Training data
   
-  # ENSEMBLE PARAMETERS
+  ### ENSEMBLE PARAMETERS
   ntree = 1000,                            # Number of trees (500-2000 typical)
   
-  # BOOTSTRAP PARAMETERS  
+  ### BOOTSTRAP PARAMETERS  
   replace = TRUE,                          # Bootstrap sampling (default)
   sampsize = floor(0.600 * nrow(site_summary_complete)),  # ~60% per tree (or higher)
   
-  # VARIABLE SELECTION
+  ### VARIABLE SELECTION
   mtry = floor(sqrt(ncol(site_summary_complete) - 1)),  # Variables per split
   
-  # NODE SPLITTING
+  ### NODE SPLITTING
   nodesize = 5,                            # Min observations in terminal nodes, play around with this.
   maxnodes = NULL,                         # No limit on tree depth
   
-  # MODEL EVALUATION
+  ### MODEL EVALUATION
   importance = TRUE,                       # Calculate variable importance
   keep.forest = TRUE,                      # Save the forest (for predictions)
   
-  # ERROR ESTIMATION
+  ### ERROR ESTIMATION
   do.trace = FALSE                         # Don't print progress
 )
 
-# Display model summary
+### Display model summary
 print(rf_model_robust)
 
-# Key robust features:
+## Key robust features:
 # 1. ntree = 1000: Large ensemble for stable predictions 
 # 2. replace = TRUE: Standard bootstrap for tree diversity
 # 3. mtry controls randomness: sqrt(p) balances bias-variance
