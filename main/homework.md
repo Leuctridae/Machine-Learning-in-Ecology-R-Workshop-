@@ -385,7 +385,7 @@ Remember: **The goal isn't to get perfect results, but to develop critical think
 
 ---
 
-**Workshop Materials:** [GitHub Repository Link]  
+**Workshop Materials:** [(https://github.com/Leuctridae/Machine-Learning-in-Ecology-R-Workshop-)]  
 **Citation:** Watson, A. (2026). Machine Learning in Ecology R Workshop. Environment Agency & University of Birmingham.
 
 **Last updated:** [27/02/2026]
