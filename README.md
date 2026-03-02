@@ -63,6 +63,8 @@ Please ensure you have installed before the workshop:
 ## once you are setup, move on to downloading the zip in main-code&data from the drop down menu ##
 
 
+
+# when you have completed the script, there is a result read me on Github as well as a homework readme to complete! #
 ---
 
 ## 📧 Contact
