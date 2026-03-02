@@ -1,7 +1,8 @@
 # Machine-Learning-in-Ecology-R-Workshop-
-Workshop materials for the SIG Aquatic Ecosystems in the Data Age event.Status: Materials will be uploaded by 24th Feb . 
+Workshop materials for the Royal Entomological Society Aquatic Insects SIG conference "Aquatic Ecosystems in the Data Age" event.Status: Materials will be uploaded by 24th Feb . 
 Prerequisites: R 4.2+, RStudio, packages: tidyverse, randomForest, caret, vegan, ggplot2, pdp Check back soon for datasets and scripts.
 
+https://www.royensoc.co.uk/event/aquatic-insects-sig-2026/
 
 # Machine Learning in Ecology – R Workshop
 
