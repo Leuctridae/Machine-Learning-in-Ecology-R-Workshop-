@@ -19,9 +19,12 @@ Facilitated by **Arron Watson** (Environment Agency & University of Birmingham)
 **homework added to main folder 27/02/2026**
 
 **step 1 - get familiar with this page and the pre learning**
-**step 2 - download the zip file  from the code & data tab **
-** step 3 - have a look at the slides in the main folder **
-** step 4 - go through the code in the script and then go to the main - results read me file to check your answers**
+
+**step 2 - download the zip file  from the code & data tab**
+
+**step 3 - have a look at the slides in the main folder**
+
+**step 4 - go through the code in the script and then go to the main - results read me file to check your answers**
 
 
 **The zip file is on the tab "code & data" where it says main, change the tab**
